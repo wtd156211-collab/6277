@@ -93,3 +93,34 @@ Windows + Python 3.13、单进程单线程、只用标准库。`scale` 样例（
 ## 七、待补的文档
 
 隐藏样例不提供；库的 API、页面排版与配色自定；多组等值面、三角网格与三维体绘制另立题目。
+
+## 八、实现与 API（补充）
+
+纯标准库（Python 3.13），无构建步骤，布局：
+
+- `isodraw/engine.py`：marching squares 核心。`extract(grid) -> list[Contour]`，
+  每格胞先按四角最小/最大值用二分过滤等值面，再产出 0/1/2 条有向线段；
+  鞍点按格心值选连法。`Contour(level, points, closed)` 是不可变具名元组。
+  `stats(contours)` 返回 `(线条数, 最长线的段数)`（闭合线段数=点数，开放线=点数-1）。
+- `isodraw/gridio.py`：`load_grid(path) -> Grid`（CRLF、行尾空白、整数值容错，
+  其余严格）、`render_lines(contours)` / `write_lines`，原子写不留半成品。
+- `isodraw/page.py`：`render_page(grid, contours, n, maxseg) -> str`，
+  网格底色是逐格胞着色的内联 PNG（`zlib`/`struct` 手写），等值线、端点、
+  计数全部取自引擎结果，无任何外部资源。
+- `isodraw/__main__.py`：命令行（见 4.3）。
+- `tests/test_isodraw.py`：`python -m unittest discover -s tests`，只读
+  `samples/**`、只写 `var/`；含逐字节对拍、确定性（跨 PYTHONHASHSEED）、
+  端点落格边、高区在左、边界开口、压格点/平台/鞍点、解析容错、CLI 与
+  scale 限时用例。
+- `web/index.html`：用 CLI 对 `hill` 生成的同一份页面，`file://` 直接打开。
+
+库用法：
+
+```python
+from isodraw import load_grid, extract, stats, render_lines
+grid = load_grid("samples/grids/hill.txt")
+contours = extract(grid)          # 按 (level, 点序列) 字典序排好
+n_lines, max_segments = stats(contours)
+open("lines.txt", "w", encoding="utf-8", newline="\n").write(
+    render_lines(contours))
+```
